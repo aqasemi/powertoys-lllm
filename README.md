@@ -2,7 +2,7 @@
 
 A PowerToys Run plugin that allows you to query LLM models directly from the PowerToys Run interface.
 
-![vid](https://github.com/user-attachments/assets/bc0982ad-a95b-47b2-9732-b387e31cd59c)
+![vid](screenshots/vid.gif)
 
 
 ## Features
