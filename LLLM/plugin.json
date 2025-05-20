@@ -6,7 +6,7 @@
 	"Author": "mjo",
 	"Version": "1.1",
 	"Language": "csharp",
-	"Website": "https://github.com/aqasemi/ptr-llm",
+	"Website": "https://github.com/aqasemi/powertoys-lllm",
 	"ExecuteFileName": "Community.PowerToys.Run.Plugin.LLLM.dll",
 	"IcoPathDark": "Images\\star.png",
 	"IcoPathLight": "Images\\star.png",
