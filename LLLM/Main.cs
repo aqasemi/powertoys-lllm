@@ -38,8 +38,10 @@ namespace Community.PowerToys.Run.Plugin.LLLM
         private string model = string.Empty;
         private string apiKey = string.Empty;
         private string sendTriggerKeyword = string.Empty;
-        private readonly string defaultSystemPrompt = "You're a helpful assistant that provides concise and accurate answers to user queries. The user will ask you through macos run plugin. Your answer should be short and to the point.";
+        private readonly string defaultSystemPrompt = "You're a helpful assistant that provides concise and accurate answers to user queries. Your answer should be short and to the point. Respond in plain text. Do not include any code blocks or markdown formatting. Use google search if needed.";
         private string systemPrompt = string.Empty;
+
+        private bool googleSearchEnabled = true;
 
         public IEnumerable<PluginAdditionalOption> AdditionalOptions =>
         [
@@ -84,6 +86,14 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Textbox,
                 TextValue = defaultSystemPrompt,
             },
+            new()
+            {
+                Key = "GoogleSearch",
+                DisplayLabel = "Google Search",
+                DisplayDescription = "Enable Google Search",
+                PluginOptionType = PluginAdditionalOption.AdditionalOptionType.Checkbox,
+                Value = true,
+            }
         ];
         public void UpdateSettings(PowerLauncherPluginSettings settings)
         {
@@ -106,6 +116,8 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 Log.Info($"[{Name}] SendTriggerKeyword set to: {sendTriggerKeyword}", GetType());
                 systemPrompt = settings.AdditionalOptions.FirstOrDefault(x => x.Key == "SystemPrompt")?.TextValue ?? defaultSystemPrompt; // Read SystemPrompt
                 Log.Info($"[{Name}] SystemPrompt set to: '{systemPrompt}'", GetType());
+                googleSearchEnabled = settings.AdditionalOptions.FirstOrDefault(x => x.Key == "GoogleSearch")?.Value ?? false;
+                Log.Info($"[{Name}] GoogleSearch is {(googleSearchEnabled ? "enabled" : "disabled")}", GetType());
             }
             else
             {
@@ -206,6 +218,18 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                     Log.Info($"[{Name}] Using system prompt: '{systemPrompt}'", GetType());
                 }
 
+                if (googleSearchEnabled)
+                {
+                    Log.Info($"[{Name}] Google Search is enabled.", GetType());
+                    requestBodyData["tools"] = new[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["google_search"] = new Dictionary<string, object>()
+                        }
+                    };
+                }
+
                 var response = await Client.PostAsync(endpointUrl, new StringContent(
                     JsonSerializer.Serialize(requestBodyData), // Use the dictionary
                     System.Text.Encoding.UTF8,
@@ -217,7 +241,6 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 var responseObj = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
 
-                // Extract the response text from the Gemini API format
                 string finalResponse = string.Empty;
 
                 // Navigate the JSON structure to find the response

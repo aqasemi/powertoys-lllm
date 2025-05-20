@@ -5,6 +5,7 @@ A PowerToys Run plugin that allows you to query LLM models directly from the Pow
 ## Features
 
 - Query LLM models without leaving your keyboard
+- Access to google search
 - Configure custom endpoints for different LLM providers
 - Supports Google Gemini API out-of-the-box
 - Customizable system prompt to control LLM behavior
