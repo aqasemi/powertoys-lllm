@@ -272,7 +272,15 @@ namespace Community.PowerToys.Run.Plugin.LLLM
 
         public List<Result> Query(Query query)
         {
-            List<Result> results = [];
+            List<Result> results = [
+                new()
+                {
+                    Title = model,
+                    SubTitle = "End input with: '" + sendTriggerKeyword + "'",
+                    IcoPath = IconPath,
+                    Action = _ => false,
+                }
+            ];
             return results;
         }
 
