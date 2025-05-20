@@ -1,0 +1,14 @@
+{
+	"ID": "1CDE310EA37046F797117442344A72F2",
+	"ActionKeyword": "> ",
+	"IsGlobal": true,
+	"Name": "LLLM",
+	"Author": "mjo",
+	"Version": "1.1",
+	"Language": "csharp",
+	"Website": "https://github.com/aqasemi/ptr-llm",
+	"ExecuteFileName": "Community.PowerToys.Run.Plugin.LLLM.dll",
+	"IcoPathDark": "Images\\star.png",
+	"IcoPathLight": "Images\\star.png",
+	"DynamicLoading": false
+}
