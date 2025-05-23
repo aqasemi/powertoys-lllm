@@ -15,6 +15,7 @@ using Microsoft.PowerToys.Settings.UI.Library;
 using Wox.Plugin;
 using Wox.Plugin.Logger;
 using Clipboard = System.Windows.Clipboard;
+using System.Text.RegularExpressions;
 
 namespace Community.PowerToys.Run.Plugin.LLLM
 {
@@ -100,9 +101,9 @@ namespace Community.PowerToys.Run.Plugin.LLLM
             Log.Info($"[{Name}] Updating settings...", GetType());
             // Default values
             string defaultEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/";
-            string defaultModel = "gemini-2.5-flash-preview-04-17";
+            string defaultModel = "gemini-2.0-flash-lite";
             string defaultApiKey = "";
-            string defaultSendTrigger = "~";
+            string defaultSendTrigger = "\\";
 
             if (settings != null && settings.AdditionalOptions != null)
             {
@@ -148,31 +149,97 @@ namespace Community.PowerToys.Run.Plugin.LLLM
         {
             Log.Info($"[{Name}] Query received: '{query?.Search}'", GetType());
             var input = query?.Search ?? string.Empty;
+            string response = "type something...";
+            List<Result> results = new();
 
-            var response = "End input with: '" + sendTriggerKeyword + "'";
             if (input.EndsWith(sendTriggerKeyword, StringComparison.Ordinal))
             {
+                string? base64Image = null;
+                string? mimeType = null;
+                if (input.Contains("[screenshot]", StringComparison.OrdinalIgnoreCase))
+                {
+                    (base64Image, mimeType) = GetScreenshotData();
+                    input = Regex.Replace(input, @"\s*\[screenshot\]", "", RegexOptions.IgnoreCase).Trim();
+                }
+
                 input = input[..^sendTriggerKeyword.Length];
-                Log.Info($"[{Name}] Input for LLM: '{input}'", GetType());
-                response = QueryLLMStreamAsync(input).Result;
+                Log.Info($"[{Name}] Input for LLM: '{input}' base64Image: {(!string.IsNullOrEmpty(base64Image) ? "Yes" : "No")}", GetType());
+                response = QueryLLMStreamAsync(input, base64Image, mimeType).Result;
                 Log.Info($"[{Name}] Response from LLM: '{response}'", GetType());
             }
+            else
+                response = "End input with: '" + sendTriggerKeyword + "' or use '/' for special commands.";
 
-            return
-            [
+
+            if (input.Contains('/', StringComparison.OrdinalIgnoreCase))
+            {
+                if (!input.Contains("[screenshot]", StringComparison.OrdinalIgnoreCase))
+                {
+                    results.Add(new()
+                    {
+                        Title = "screenshot",
+                        SubTitle = "Attach screenshot to query",
+                        IcoPath = IconPath,
+                        Action = _ => CommandSuggestion(input, "screenshot"),
+                    });
+                }
+            }
+
+
+            results.Add(
                 new()
                 {
-                    Title = model,
+                    Title = input,
                     SubTitle = response,
                     IcoPath = IconPath,
-                    Action = _ => CopyToClipboard(response.ToString()),
-                    ContextData = new Dictionary<string, string> { { "copy", response } }, // Store the response text in context data for context menu which allows copying
-                },
-            ];
+                    Action = _ => CopyToClipboard(response.ToString()), // Ensure response is not null
+                    ContextData = new Dictionary<string, string> { { "copy", response ?? string.Empty } },
+                });
+            return results;
         }
 
-        public async Task<string> QueryLLMStreamAsync(string input)
+        public List<Result> Query(Query query)
         {
+            var inputText = query?.Search ?? string.Empty;
+
+            List<Result> results = [
+                new()
+                {
+                    Title = inputText,
+                    SubTitle = "End input with: '" + sendTriggerKeyword + "' or use '/' for special commands.",
+                    IcoPath = IconPath,
+                    Action = _ => false,
+                }
+            ];
+
+            if (inputText.Contains('/', StringComparison.OrdinalIgnoreCase))
+            {
+                if (!inputText.Contains("[screenshot]", StringComparison.OrdinalIgnoreCase))
+                {
+                    results.Add(new()
+                    {
+                        Title = "screenshot",
+                        SubTitle = "Attach screenshot to query",
+                        IcoPath = IconPath,
+                        Action = _ => CommandSuggestion(inputText, "screenshot"),
+                    });
+                }
+                // add more commands here if needed
+            }
+
+            return results;
+        }
+
+        public async Task<string> QueryLLMStreamAsync(string input, string? imageBase64 = null, string? imageMimeType = null)
+        {
+            // Check if the API key is set
+            Log.Info($"[{Name}] Querying LLM with input: '{input}'", GetType());
+            if (string.IsNullOrEmpty(input))
+            {
+                Log.Warn($"[{Name}] Input is empty. LLM query will likely fail.", GetType());
+                return "Input is empty. Please enter a query.";
+            }
+
             if (string.IsNullOrEmpty(apiKey))
             {
                 Log.Warn($"[{Name}] API Key is not set. LLM query will likely fail.", GetType());
@@ -182,24 +249,33 @@ namespace Community.PowerToys.Run.Plugin.LLLM
             {
                 // Construct the proper endpoint URL with API key and model
                 var endpointUrl = $"{endpoint}{model}:generateContent?key={apiKey}";
-                Log.Info($"[{Name}] Querying LLM", GetType());
+                Log.Info($"[{Name}] Querying LLM with textInput: '{input}', image: {(!string.IsNullOrEmpty(input) ? "Yes" : "No")}, mimeType: {imageMimeType}", GetType());
 
-                // Base request body
+                var parts = new List<object>();
+
+                if (!string.IsNullOrEmpty(input))
+                {
+                    parts.Add(new { text = input });
+                }
+
+                if (!string.IsNullOrEmpty(imageBase64) && !string.IsNullOrEmpty(imageMimeType))
+                {
+                    parts.Add(new
+                    {
+                        inline_data = new
+                        {
+                            mime_type = imageMimeType,
+                            data = imageBase64,
+                        },
+                    });
+                }
+
                 var requestBodyData = new Dictionary<string, object>
                 {
                     ["contents"] = new[]
                     {
-                        new
-                        {
-                            parts = new[]
-                            {
-                                new
-                                {
-                                    text = input
-                                }
-                            }
-                        }
-                    }
+                        new { parts = parts.ToArray() },
+                    },
                 };
 
                 // Add systemInstruction if systemPrompt is provided
@@ -207,13 +283,7 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 {
                     requestBodyData["systemInstruction"] = new
                     {
-                        parts = new[]
-                        {
-                            new
-                            {
-                                text = systemPrompt
-                            }
-                        }
+                        parts = new[] { new { text = systemPrompt } },
                     };
                     Log.Info($"[{Name}] Using system prompt: '{systemPrompt}'", GetType());
                 }
@@ -249,10 +319,10 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 {
                     var firstCandidate = candidates[0];
                     if (firstCandidate.TryGetProperty("content", out var content) &&
-                        content.TryGetProperty("parts", out var parts) &&
-                        parts.GetArrayLength() > 0)
+                        content.TryGetProperty("parts", out var _parts) &&
+                        _parts.GetArrayLength() > 0)
                     {
-                        var firstPart = parts[0];
+                        var firstPart = _parts[0];
                         if (firstPart.TryGetProperty("text", out var text))
                         {
                             finalResponse = text.GetString() ?? string.Empty;
@@ -268,20 +338,6 @@ namespace Community.PowerToys.Run.Plugin.LLLM
                 Log.Exception($"[{Name}] LLM query exception", ex, GetType());
                 return $"Error querying LLM: {ex.Message}";
             }
-        }
-
-        public List<Result> Query(Query query)
-        {
-            List<Result> results = [
-                new()
-                {
-                    Title = model,
-                    SubTitle = "End input with: '" + sendTriggerKeyword + "'",
-                    IcoPath = IconPath,
-                    Action = _ => false,
-                }
-            ];
-            return results;
         }
 
         public System.Windows.Controls.Control CreateSettingPanel()
@@ -333,6 +389,30 @@ namespace Community.PowerToys.Run.Plugin.LLLM
             }
 
             return true;
+        }
+
+        private (string? base64Image, string? mimeType) GetScreenshotData()
+        {
+            Log.Info($"[{Name}] Attempting to capture screenshot and get data.", GetType());
+            var (base64Image, mimeType) = ScreenCaptureUtility.ScreenshotWithAppHidden("PowerToys.PowerLauncher");
+            if (string.IsNullOrEmpty(base64Image))
+            {
+                Log.Warn($"[{Name}] Screenshot data is empty or null.", GetType());
+                return (null, null);
+            }
+
+            return (base64Image, mimeType);
+        }
+
+        public bool CommandSuggestion(string input, string command = "screenshot")
+        {
+            string newInput = Regex.Replace(input, @"\B/\w*", "");
+            newInput = Regex.Replace(newInput, @"\s+", " ").Trim();
+            newInput = $"[{command}] " + newInput;
+
+            Log.Info($"[{Name}] Command suggestion: '{newInput}'", GetType());
+            Context?.API.ChangeQuery(newInput, true);
+            return false; // No action for initial query, handled by delayed execution
         }
     }
 }
