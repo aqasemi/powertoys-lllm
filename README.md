@@ -8,11 +8,15 @@ A PowerToys Run plugin that allows you to query LLM models directly from the Pow
 ## Features
 
 - Query LLM models without leaving your keyboard
-- Access to google search
-- Configure custom endpoints for different LLM providers
+- Configure custom endpoints for different LLM providers (WIP)
 - Supports Google Gemini API out-of-the-box
-- Customizable system prompt to control LLM behavior
+- Access to google search
+- Utility Commands such as:
+   - /screenshot, which will attach screenshot of the current screen to the query
+      - This will hide powertoys run and take a screenshot of the current screen
+      - The screenshot will be attached to the query automatically
 - Copy LLM responses to clipboard with a single click
+- Customizable system prompt to control LLM behavior
 
 ## Installation
 
@@ -23,9 +27,11 @@ A PowerToys Run plugin that allows you to query LLM models directly from the Pow
 
 ## Usage
 
-1. Open PowerToys Run (default: `Alt+Space`)
+1. Open PowerToys Run
 2. Type the keyword `> ` followed by your query
 3. End your query with the configured trigger symbol (default: `\`) to send it to the LLM
+   - Or use the `/` command to access utility commands
+   - Example: `/screenshot` will take a screenshot and attach it to the query
 4. Press Enter to copy the response to clipboard
 
 Example: `> What is the capital of Saudi?\`
@@ -42,13 +48,12 @@ Configure the plugin through PowerToys Run Settings:
    - Default: `gemini-2.0-flash-lite`
    
 3. **API Key**: Your API key for the LLM service
-   - Required for functionality. Get it from ai.studio (it's free)
+   - Required for functionality. Get it from https://ai.studio (it's free)
    
 4. **Send Trigger Keyword**: The character(s) that will trigger sending the query
    - Default: `\`
    
 5. **System Prompt**: Instructions that guide the LLM's behavior
-   - Default: A concise assistant prompt
 
 ## Requirements
 - PowerToys (latest version recommended)
