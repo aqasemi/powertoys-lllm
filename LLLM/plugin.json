@@ -4,7 +4,7 @@
 	"IsGlobal": true,
 	"Name": "LLLM",
 	"Author": "mjo",
-	"Version": "1.1",
+	"Version": "1.2",
 	"Language": "csharp",
 	"Website": "https://github.com/aqasemi/powertoys-lllm",
 	"ExecuteFileName": "Community.PowerToys.Run.Plugin.LLLM.dll",
