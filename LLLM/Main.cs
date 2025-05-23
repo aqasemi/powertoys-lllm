@@ -148,25 +148,62 @@ namespace Community.PowerToys.Run.Plugin.LLLM
         {
             Log.Info($"[{Name}] Query received: '{query?.Search}'", GetType());
             var input = query?.Search ?? string.Empty;
+            string response; // Declare response here to be accessible in all paths
 
-            var response = "End input with: '" + sendTriggerKeyword + "'";
-            if (input.EndsWith(sendTriggerKeyword, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(input))
+            {
+                response = "Please enter a query.";
+            }
+            else if (input.EndsWith("/", StringComparison.OrdinalIgnoreCase))
+            {
+                // Suggest "screenshot"
+                return
+                [
+                    new()
+                    {
+                        Title = "screenshot",
+                        SubTitle = "Capture text from screen (experimental)",
+                        IcoPath = IconPath,
+                        Action = _ =>
+                        {
+                            // This action could potentially trigger a screen capture in a real scenario
+                            // For now, it will just update the query to "/screenshot"
+                            Context?.API.ChangeQuery($"{query.ActionKeyword} {input}screenshot");
+                            return false; // Prevent PowerToys Run from closing
+                        },
+                    },
+                ];
+            }
+            else if (input.EndsWith("/screenshot", StringComparison.OrdinalIgnoreCase))
+            {
+                // Replace query and send to LLM
+                input = "The formula found in screen is bla bla bla..."; // Replace with actual screen capture logic if possible
+                Log.Info($"[{Name}] Input for LLM (after /screenshot): '{input}'", GetType());
+                response = QueryLLMStreamAsync(input).Result;
+                Log.Info($"[{Name}] Response from LLM: '{response}'", GetType());
+            }
+            else if (input.EndsWith(sendTriggerKeyword, StringComparison.Ordinal))
             {
                 input = input[..^sendTriggerKeyword.Length];
                 Log.Info($"[{Name}] Input for LLM: '{input}'", GetType());
                 response = QueryLLMStreamAsync(input).Result;
                 Log.Info($"[{Name}] Response from LLM: '{response}'", GetType());
             }
+            else
+            {
+                // Default behavior: suggest ending with trigger keyword
+                response = "End input with: '" + sendTriggerKeyword + "' or use '/' for special commands.";
+            }
 
             return
             [
                 new()
                 {
-                    Title = model,
+                    Title = model, // Using model name as title for consistency
                     SubTitle = response,
                     IcoPath = IconPath,
-                    Action = _ => CopyToClipboard(response.ToString()),
-                    ContextData = new Dictionary<string, string> { { "copy", response } }, // Store the response text in context data for context menu which allows copying
+                    Action = _ => CopyToClipboard(response.ToString()), // Ensure response is not null
+                    ContextData = new Dictionary<string, string> { { "copy", response ?? string.Empty } },
                 },
             ];
         }
@@ -272,13 +309,36 @@ namespace Community.PowerToys.Run.Plugin.LLLM
 
         public List<Result> Query(Query query)
         {
+            // This overload is called for initial display and when typing, 
+            // before delayedExecution is triggered.
+            // We can provide initial suggestions or default text here.
+            var inputText = query?.Search ?? string.Empty;
+            string subTitle;
+
+            if (inputText.EndsWith("/", StringComparison.OrdinalIgnoreCase))
+            {
+                subTitle = "Type 'screenshot' to simulate screen capture";
+            }
+            else if (inputText.EndsWith("/screenshot", StringComparison.OrdinalIgnoreCase))
+            {
+                subTitle = "Press Enter to send 'The formula found in screen is bla bla bla...' to LLM";
+            }
+            else if (inputText.EndsWith(sendTriggerKeyword, StringComparison.OrdinalIgnoreCase))
+            {
+                subTitle = $"Ready to send to {model}";
+            }
+            else
+            {
+                subTitle = "End input with: '" + sendTriggerKeyword + "' or use '/' for special commands.";
+            }
+
             List<Result> results = [
                 new()
                 {
-                    Title = model,
-                    SubTitle = "End input with: '" + sendTriggerKeyword + "'",
+                    Title = model, // Or a more descriptive title like "LLLM Assistant"
+                    SubTitle = subTitle,
                     IcoPath = IconPath,
-                    Action = _ => false,
+                    Action = _ => false, // No action for initial query, handled by delayed execution
                 }
             ];
             return results;

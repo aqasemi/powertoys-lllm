@@ -1,0 +1,77 @@
+name: LLLM Plugin Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Plugin version (e.g., 1.2.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Create Plugin Release
+    runs-on: windows-latest
+    permissions: # Required for softprops/action-gh-release to create a release and upload assets
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x' # Matches net9.0-windows target framework
+
+      - name: Update plugin.json version
+        shell: pwsh
+        run: |
+          $pluginJsonPath = "LLLM/plugin.json"
+          $pluginJson = Get-Content $pluginJsonPath -Raw | ConvertFrom-Json
+          $pluginJson.Version = "${{ github.event.inputs.version }}"
+          # Ensure depth is sufficient for ConvertTo-Json if plugin.json is complex
+          $pluginJson | ConvertTo-Json -Depth 5 | Set-Content $pluginJsonPath
+          Write-Host "Updated LLLM/plugin.json to version ${{ github.event.inputs.version }}"
+
+      - name: Build the plugin
+        run: dotnet build --configuration Release LLLM/LLLM.csproj
+
+      - name: Prepare release artifacts
+        shell: pwsh
+        run: |
+          $releaseDir = "release_package"
+          New-Item -ItemType Directory -Path $releaseDir -Force
+
+          # Adjust the source path for DLLs and deps.json based on actual build output
+          # The project has <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+          # and <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+          # So the output path should be LLLM/bin/Release/
+          $buildOutputPath = "LLLM/bin/Release" 
+
+          Copy-Item -Path "LLLM/Images" -Destination "$releaseDir/Images" -Recurse -Force
+          Copy-Item -Path "$buildOutputPath/Community.PowerToys.Run.Plugin.LLLM.deps.json" -Destination "$releaseDir/Community.PowerToys.Run.Plugin.LLLM.deps.json" -Force
+          Copy-Item -Path "$buildOutputPath/Community.PowerToys.Run.Plugin.LLLM.dll" -Destination "$releaseDir/Community.PowerToys.Run.Plugin.LLLM.dll" -Force
+          Copy-Item -Path "LLLM/plugin.json" -Destination "$releaseDir/plugin.json" -Force
+          
+          Write-Host "Copied files to $releaseDir"
+          Get-ChildItem -Path $releaseDir -Recurse | Write-Host
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          $zipFileName = "LLLM-Plugin-v${{ github.event.inputs.version }}.zip"
+          Compress-Archive -Path "release_package/*" -DestinationPath $zipFileName
+          Write-Host "Created $zipFileName"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2 # Using v2 as it's newer
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Plugin Release v${{ github.event.inputs.version }}
+          body: "Release of LLLM Plugin version ${{ github.event.inputs.version }}."
+          draft: false
+          prerelease: false
+          files: LLLM-Plugin-v${{ github.event.inputs.version }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This is automatically available

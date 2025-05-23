@@ -2,6 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFramework>net9.0-windows</TargetFramework>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 		<Platforms>x64;ARM64</Platforms>
 		<PlatformTarget>$(Platform)</PlatformTarget>
 		<UseWPF>true</UseWPF>
